@@ -1,4 +1,5 @@
 # WilloMotors
+n![WilloMotors in action](assets/readme-preview.gif)
 
 A Telegram bot and market index for flipping used cars in Switzerland.
 
