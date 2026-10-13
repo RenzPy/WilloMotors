@@ -5,7 +5,7 @@ Ordered. Each step verifies before the next.
 ## 1. Secrets
 
 ```bash
-cd ~/SwissCarScout
+cd ~/WilloMotors
 cp -n .env.example .env
 nano .env
 chmod 600 .env
@@ -56,18 +56,18 @@ the following nights.
 Check `User=` and `WorkingDirectory=` in the unit files match your box first.
 
 ```bash
-sudo cp deploy/swisscarscout-listen.service /etc/systemd/system/
-sudo cp deploy/swisscarscout-index.service deploy/swisscarscout-index.timer /etc/systemd/system/
+sudo cp deploy/willomotors-listen.service /etc/systemd/system/
+sudo cp deploy/willomotors-index.service deploy/willomotors-index.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now swisscarscout-listen swisscarscout-index.timer
+sudo systemctl enable --now willomotors-listen willomotors-index.timer
 ```
 
 Verify:
 
 ```bash
-systemctl status swisscarscout-listen --no-pager
-systemctl list-timers swisscarscout-index --no-pager
-journalctl -u swisscarscout-listen -f
+systemctl status willomotors-listen --no-pager
+systemctl list-timers willomotors-index --no-pager
+journalctl -u willomotors-listen -f
 ```
 
 The bot should message you "Radar is listening."
@@ -107,8 +107,8 @@ Both should pass before you restart a service.
 ## If something breaks
 
 ```bash
-journalctl -u swisscarscout-listen -n 50 --no-pager
-journalctl -u swisscarscout-index -n 50 --no-pager
+journalctl -u willomotors-listen -n 50 --no-pager
+journalctl -u willomotors-index -n 50 --no-pager
 ./.venv/bin/python run.py --source autoscout24 --probe        # is the API up?
 ./.venv/bin/python run.py --source manual --mode buy --explain # why no alerts?
 ```

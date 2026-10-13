@@ -40,12 +40,9 @@ import requests
 
 from . import gemini_models
 
-API = ("https://generativelanguage.googleapis.com/v1beta/models/"
-       "{model}:generateContent")
-
-# No hardcoded model. gemini-2.0-flash used to sit here; Google retired it and
-# extraction and photo analysis quietly stopped working. The model is now
-# chosen from the live list -- see gemini_models.py for the rule.
+# Generation goes through gemini_models.generate(), which picks a model per
+# task and learns from retired models and used-up daily quotas. There is no
+# hardcoded model anywhere in this project.
 
 _EXTRACT_SYSTEM = """\
 You extract structured data from second-hand vehicle adverts in German, French,
@@ -148,66 +145,81 @@ def _clean_str(v: Any, maxlen: int = 80) -> str:
 
 
 def status_line() -> str:
-    """Whether AI actually works, not merely whether a key is set. /stats
-    said "AI extraction: on" the whole time the retired model was failing."""
+    """For /stats and startup: which model each task actually uses and
+    anything being avoided -- not merely whether a key is set. /stats said
+    "AI extraction: on" the whole time the retired model was failing."""
     g = Gemini()
     if not g.key:
         return "off — GEMINI_API_KEY not set"
-    model = g.model
+    for task in gemini_models.TASKS:
+        gemini_models.resolve(g.key, task, g.preferred_for(task))
     st = gemini_models.status()
-    if not model:
-        return f"unavailable — {st['problem'] or 'no usable model'}"
-    line = f"{model} ({st['reason']}, checked {st['checked']})"
+    line = ", ".join(f"{task} {info['model'] or 'paused'}"
+                     for task, info in st["tasks"].items())
+    if st["blocked"]:
+        line += " · avoiding " + ", ".join(f"{m} until {u}"
+                                            for m, u in st["blocked"].items())
     if st["problem"]:
-        line += f" — warning: {st['problem']}, using last known model"
+        line += f" · warning: {st['problem']}"
     return line
 
 
+def _strip_fences(text: str) -> str:
+    """Models sometimes wrap JSON in ```json fences even when asked not to;
+    json.loads fails on the fence and the answer is silently lost."""
+    t = text.strip()
+    m = re.match(r"^```(?:json)?\s*(.*?)\s*```$", t, re.S)
+    return m.group(1) if m else t
+
+
 class Gemini:
+    """Each method declares its task, and gemini_models picks the model:
+
+        extract              -> "bulk"     flash-lite, 500 a day
+        assess_photos, assess -> "quality" flash, 20 a day; flash-lite once
+                                            the day's flash quota is used up
+    """
+
     def __init__(self, model: str | None = None):
         self.key = os.environ.get("GEMINI_API_KEY", "").strip()
-        # "auto" (the default) or a specific name you want pinned. A pinned
-        # name that stops existing falls back to auto, and you're told.
+        # Pin for the quality task: an explicit argument, else GEMINI_MODEL,
+        # else "auto". The bulk task reads GEMINI_MODEL_BULK.
         self.preferred = model or os.environ.get("GEMINI_MODEL", "auto")
+
+    def preferred_for(self, task: str) -> str:
+        return self.preferred if task == "quality" else gemini_models.preferred_for(task)
 
     @property
     def model(self) -> str | None:
+        """The quality-task model -- the one /stats headlines."""
         if not self.key:
             return None
-        return gemini_models.resolve(self.key, self.preferred)
+        return gemini_models.resolve(self.key, "quality", self.preferred)
 
     @property
     def available(self) -> bool:
         return bool(self.key)
 
-    def _headers(self) -> dict:
-        # The key goes in a header, never the URL. As a query parameter
-        # (?key=...) it appeared inside requests' exception messages, which
-        # were printed -- so a failed Gemini call wrote the key into journald.
-        return {"x-goog-api-key": self.key}
-
     def _safe(self, exc) -> str:
+        """Exception text with the key stripped out. The key travels in a
+        header (x-goog-api-key), never the URL; this is the second line of
+        defence."""
         text = str(exc)
         return text.replace(self.key, "***") if self.key else text
 
-    def _post(self, body: dict, timeout: float):
-        """POST with the current model. On a 404 the model was retired:
-        refresh the list, pick again (announcing it), retry once."""
-        model = self.model
-        if not model:
-            raise RuntimeError("no Gemini model available — "
-                               + (gemini_models.status()["problem"] or "see logs"))
-        r = requests.post(API.format(model=model), headers=self._headers(),
-                          json=body, timeout=timeout)
-        if gemini_models.looks_retired(r):
-            new = gemini_models.resolve(self.key, self.preferred,
-                                        force=True, retired=model)
-            if new and new != model:
-                r = requests.post(API.format(model=new), headers=self._headers(),
-                                  json=body, timeout=timeout)
+    def _post(self, body: dict, timeout: float, task: str = "quality"):
+        r, _model = gemini_models.generate(self.key, task, body, timeout,
+                                           self.preferred_for(task))
+        if r is None:
+            raise RuntimeError(f"no Gemini model usable for {task} right now")
         return r
 
-    def _call(self, system: str, user: str, as_json: bool,
+    @staticmethod
+    def _text(r) -> str:
+        parts = r.json()["candidates"][0]["content"]["parts"]
+        return "".join(p.get("text", "") for p in parts)
+
+    def _call(self, system: str, user: str, as_json: bool, task: str = "quality",
               timeout: float = 30.0) -> str | None:
         body: dict = {
             "systemInstruction": {"parts": [{"text": system}]},
@@ -217,15 +229,13 @@ class Gemini:
         if as_json:
             body["generationConfig"]["responseMimeType"] = "application/json"
         try:
-            r = self._post(body, timeout)
+            r = self._post(body, timeout, task)
             if r.status_code == 429:
-                print("[ai] Gemini rate limit hit — falling back")
-                return None
+                return None               # already logged and learned from
             r.raise_for_status()
-            data = r.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            return self._text(r)
         except Exception as exc:
-            print(f"[ai] Gemini unavailable ({self._safe(exc)}) — falling back")
+            print(f"[ai] Gemini unavailable for {task} ({self._safe(exc)}) — falling back")
             return None
 
     # -- job 1: extraction ------------------------------------------------
@@ -235,11 +245,11 @@ class Gemini:
             return None
         raw = self._call(_EXTRACT_SYSTEM,
                          f"<advert>\n{listing_text[:6000]}\n</advert>",
-                         as_json=True)
+                         as_json=True, task="bulk")
         if not raw:
             return None
         try:
-            d = json.loads(raw)
+            d = json.loads(_strip_fences(raw))
         except json.JSONDecodeError:
             print("[ai] Gemini returned non-JSON — falling back")
             return None
@@ -285,11 +295,11 @@ class Gemini:
             "generationConfig": {"temperature": 0.1},
         }
         try:
-            r = self._post(body, 90)
+            r = self._post(body, 90, "quality")
             if r.status_code == 429:
-                return "(Gemini rate limit — try again in a minute)"
+                return "(Gemini limit reached — try again in a minute)"
             r.raise_for_status()
-            return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            return self._text(r).strip()
         except Exception as exc:
             print(f"[ai] photo assessment failed: {self._safe(exc)}")
             return ""
@@ -312,4 +322,4 @@ class Gemini:
             li.body[:2000],
         ]
         return (self._call(_ASSESS_SYSTEM, "\n".join(f for f in facts if f),
-                           as_json=False) or "").strip()
+                           as_json=False, task="quality") or "").strip()

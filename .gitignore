@@ -35,3 +35,6 @@ dump_*.json
 
 # chosen Gemini model, refreshed daily from the API
 gemini_model.json
+
+# test caches
+.pytest_cache/

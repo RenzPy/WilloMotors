@@ -1,4 +1,4 @@
-# SwissCarScout
+# WilloMotors
 
 A Telegram bot and market index for flipping used cars in Switzerland.
 
@@ -48,8 +48,8 @@ or more sales tells you which way to move the discount factor.
 ### Install
 
 ```bash
-git clone https://github.com/RenzPy/SwissCarScout.git
-cd SwissCarScout
+git clone https://github.com/RenzPy/WilloMotors.git
+cd WilloMotors
 ./deploy/install.sh
 ```
 
@@ -98,13 +98,13 @@ After 4–5 nightly runs you have a usable baseline across the full market.
 ### Install services
 
 ```bash
-sudo cp deploy/swisscarscout-listen.service deploy/swisscarscout-index.{service,timer} /etc/systemd/system/
+sudo cp deploy/willomotors-listen.service deploy/willomotors-index.{service,timer} /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now swisscarscout-listen swisscarscout-index.timer
+sudo systemctl enable --now willomotors-listen willomotors-index.timer
 ```
 
-`swisscarscout-listen` stays running and receives listings you paste to the bot.
-`swisscarscout-index` runs nightly at 03:20 via the timer.
+`willomotors-listen` stays running and receives listings you paste to the bot.
+`willomotors-index` runs nightly at 03:20 via the timer.
 
 ---
 
@@ -185,26 +185,30 @@ it to the bot.
 
 ## Gemini model selection
 
-There is no hardcoded model. The tool asks the API which models it offers and
-picks the newest stable versioned **flash** model (today `gemini-3.8-flash`),
-never a preview, text-to-speech, image, lite or pro variant. Flash because pro's
-free-tier daily limits are far lower. The choice is cached in
-`gemini_model.json` and refreshed daily; a 404 from a retired model triggers an
-immediate re-pick and one retry.
+There is no hardcoded model. The model is chosen **per task** from what your key
+can actually use, based on the account's real free-tier limits:
 
-**Every change is announced on Telegram**, because a different model can
-extract and write differently and you should know when that happens. `/stats`
-shows the model actually in use and whether it's working, not merely whether a
-key is set.
+| Task | Model | Free limit |
+|---|---|---|
+| Reading a pasted advert | newest usable **flash-lite** | 500 a day |
+| Photo checks, the buy/skip verdict | newest usable **flash** | 20 a day |
 
-`GEMINI_MODEL=auto` in `.env` is the default and the recommendation. Set a
-specific name only to pin one; if it's ever retired, the tool falls back to
-auto and tells you. The selection code (`gemini_models.py`) is identical in
-job-scout and SwissCarScout.
+- **When the day's flash quota is used up**, photo checks and verdicts use
+  flash-lite until the reset (about 09:00 Swiss time), then switch back.
+- **Advert reading pauses** rather than spending the photo-check quota.
+- **Models this key can't use are learned and avoided for a week.** The API
+  lists models some accounts can't use ("no longer available to new users"),
+  so a 404 is what gives them away.
+- **Every model change is announced on Telegram**, since a different model
+  reads and writes differently. `/stats` shows what's actually in use.
+
+`GEMINI_MODEL` (photo checks and verdicts) and `GEMINI_MODEL_BULK` (advert
+reading) in `.env` are both `auto` by default; set a name only to pin one. The
+selection code (`gemini_models.py`) is identical in job-scout and
+WilloMotors. If both use one key, they share the 20 flash calls a day.
 
 This replaced a hardcoded `gemini-2.0-flash`. When Google retired it, every AI
-call returned 404 and — because AI features fail soft by design — nothing
-visibly broke. That's the failure this exists to prevent.
+call returned 404, and since AI features fail soft, nothing visibly broke.
 
 **Secrets never reach the logs.** The Gemini key is sent as a header, not in
 the URL. The Telegram bot token has to be in the URL (Telegram offers no
@@ -245,11 +249,17 @@ package — one less thing to break when a site changes.
 ## Tests
 
 ```bash
-python -m unittest discover -s tests -v
+python -m unittest discover -s tests -v    # 62 tests, no network needed
+python dev/mutation_check.py               # proves the tests catch each fix being undone
 ```
 
-19 tests, standard library only. Every test pins a bug that actually shipped,
-named for it:
+The mutation check re-breaks each fix from the 1.1/1.2 work (model selection,
+secret redaction, task wiring) on a throwaway copy and confirms the tests
+fail. It found one real gap: nothing in this project checked that the Gemini
+key stays out of the URL.
+
+The original 1.0 regression tests each pin a bug that actually shipped, named
+for it:
 
 - Mileage normalisation sign was inverted (inflated baselines for high-km cars)
 - Three price functions disagreed (CHF 4,200 gap on the same car)

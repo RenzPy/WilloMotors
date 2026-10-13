@@ -1,0 +1,13 @@
+# Nightly market-data ingest from AutoScout24. Builds the price baseline every
+# score is measured against. Sends a Telegram report when it finishes.
+# Triggered by willomotors-index.timer, not enabled directly.
+[Unit]
+Description=WilloMotors market index
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/WilloMotors
+EnvironmentFile=/home/ubuntu/WilloMotors/.env
+ExecStart=/home/ubuntu/WilloMotors/.venv/bin/python run.py --source autoscout24 --index

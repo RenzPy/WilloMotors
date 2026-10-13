@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SwissCarScout — find cars worth buying and sellers worth calling.
+"""WilloMotors — find cars worth buying and sellers worth calling.
 
     python run.py --source sample --mode buy --dry-run     # test offline
     python run.py --source tutti  --mode buy               # one pass
@@ -456,7 +456,7 @@ def main():
 
     if args.version:
         from radar import BUILD, __version__
-        print(f"SwissCarScout {__version__} · {BUILD}")
+        print(f"WilloMotors {__version__} · {BUILD}")
         return
 
     load_dotenv()

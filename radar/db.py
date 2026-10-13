@@ -137,7 +137,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 
 def connect(path: str) -> sqlite3.Connection:
-    # swisscarscout-index and swisscarscout-listen are separate processes writing this file.
+    # willomotors-index and willomotors-listen are separate processes writing this file.
     # WAL lets readers proceed while a write is in progress, and the timeout
     # makes a writer wait for a lock instead of failing instantly with
     # "database is locked" when both happen at once.

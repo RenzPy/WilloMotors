@@ -1,15 +1,15 @@
 # The one that always runs: receives listings pasted to your Telegram bot,
 # parses them, scores them against the market baseline, replies with a verdict.
 [Unit]
-Description=SwissCarScout Telegram intake
+Description=WilloMotors Telegram intake
 After=network-online.target
 
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/SwissCarScout
-EnvironmentFile=/home/ubuntu/SwissCarScout/.env
-ExecStart=/home/ubuntu/SwissCarScout/.venv/bin/python run.py --listen
+WorkingDirectory=/home/ubuntu/WilloMotors
+EnvironmentFile=/home/ubuntu/WilloMotors/.env
+ExecStart=/home/ubuntu/WilloMotors/.venv/bin/python run.py --listen
 Restart=always
 RestartSec=30
 
