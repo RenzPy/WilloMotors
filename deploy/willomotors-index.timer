@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the SwissCarScout market index nightly
+Description=Run the WilloMotors market index nightly
 
 [Timer]
 OnCalendar=*-*-* 03:20:00

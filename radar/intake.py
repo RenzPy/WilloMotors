@@ -54,7 +54,7 @@ from . import ledger
 
 API = "https://api.telegram.org/bot{token}/{method}"
 
-HELP = """<b>🚗 Car Radar</b>
+HELP = """<b>🚗 WilloMotors</b>
 
 Paste a car advert and I'll parse it, store it, compare it against the Swiss \
 market and tell you what to ask the seller. Send photos and I'll tell you \
@@ -565,7 +565,7 @@ def listen(cfg: dict) -> None:
     # model is noticed and announced on Telegram immediately -- not hours
     # later when the first listing happens to be pasted.
     print(f"Listening. AI: {status_line()}. Ctrl-C to stop.")
-    send(token, chat, "🚗 SwissCarScout is listening. Paste a listing any time.")
+    send(token, chat, "🚗 WilloMotors is listening. Paste a listing any time.")
 
     albums: dict = {}          # media_group_id -> {photos, caption, ts}
 

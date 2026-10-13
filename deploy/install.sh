@@ -86,7 +86,7 @@ Done. Next:
   4. Services (check User= and WorkingDirectory= in the unit files first):
        sudo cp deploy/*.service /etc/systemd/system/
        sudo systemctl daemon-reload
-       sudo systemctl enable --now swisscarscout-buy swisscarscout-listen
-       journalctl -u swisscarscout-buy -f
+       sudo systemctl enable --now willomotors-buy willomotors-listen
+       journalctl -u willomotors-buy -f
 
 NEXT

@@ -10,15 +10,15 @@
 # If you later enable a source worth polling, rename this to
 # radar-hunt.service, set --source, and install it.
 [Unit]
-Description=car-radar hunting loop
+Description=willomotors hunting loop
 After=network-online.target
 
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/car-radar
-EnvironmentFile=/home/ubuntu/car-radar/.env
-ExecStart=/home/ubuntu/car-radar/.venv/bin/python run.py --source CHANGEME --mode buy --loop
+WorkingDirectory=/home/ubuntu/willomotors
+EnvironmentFile=/home/ubuntu/willomotors/.env
+ExecStart=/home/ubuntu/willomotors/.venv/bin/python run.py --source CHANGEME --mode buy --loop
 Restart=always
 RestartSec=60
 
